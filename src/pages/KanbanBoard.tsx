@@ -75,6 +75,60 @@ export default function KanbanBoard() {
           setColumns(columnsData)
           setTasks(tasksData)
           setSubtasks(subtasksData)
+          
+          // If we have a board but no columns, create default columns
+          if (columnsData.length === 0) {
+            const defaultColumns = [
+              {
+                id: 'col-1',
+                title: '📋 To Do',
+                boardId: boardId!,
+                position: 0,
+                userId: currentUser.id,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              },
+              {
+                id: 'col-2',
+                title: '🚀 In Progress',
+                boardId: boardId!,
+                position: 1,
+                userId: currentUser.id,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              },
+              {
+                id: 'col-3',
+                title: '👀 Review',
+                boardId: boardId!,
+                position: 2,
+                userId: currentUser.id,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              },
+              {
+                id: 'col-4',
+                title: '✅ Done',
+                boardId: boardId!,
+                position: 3,
+                userId: currentUser.id,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              }
+            ]
+            
+            // Save default columns to database
+            for (const column of defaultColumns) {
+              try {
+                await blink.db.columns.create(column)
+              } catch (error) {
+                console.log('Error creating default column:', error)
+              }
+            }
+            
+            setColumns(defaultColumns)
+          }
+          
           return
         }
       } catch (error) {

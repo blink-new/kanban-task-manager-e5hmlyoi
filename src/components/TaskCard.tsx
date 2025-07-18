@@ -64,8 +64,8 @@ export default function TaskCard({ task, onEditTask }: TaskCardProps) {
         'hover:border-l-4 hover:border-l-primary/50'
       }`}
       onClick={(e) => {
-        // Only open edit dialog if not dragging and clicking on card content
-        if (!isDragging && e.target === e.currentTarget) {
+        // Only open edit dialog if not dragging and not clicking on dropdown
+        if (!isDragging && !e.defaultPrevented) {
           onEditTask(task)
         }
       }}
@@ -91,16 +91,29 @@ export default function TaskCard({ task, onEditTask }: TaskCardProps) {
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <MoreHorizontal className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onEditTask(task)}>
+                <DropdownMenuItem onClick={(e) => {
+                  e.stopPropagation()
+                  onEditTask(task)
+                }}>
                   Edit Task
                 </DropdownMenuItem>
-                <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                <DropdownMenuItem className="text-destructive">
+                <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
+                  Duplicate
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  className="text-destructive"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   Delete Task
                 </DropdownMenuItem>
               </DropdownMenuContent>

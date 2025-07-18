@@ -13,6 +13,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Badge } from '../components/ui/badge'
 import { Progress } from '../components/ui/progress'
 import Header from '../components/Header'
+import TaskListModal from '../components/TaskListModal'
+import TaskEditDialog from '../components/TaskEditDialog'
 import { toast } from 'react-hot-toast'
 
 export default function Dashboard() {
@@ -24,6 +26,14 @@ export default function Dashboard() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [newBoardTitle, setNewBoardTitle] = useState('')
   const [newBoardDescription, setNewBoardDescription] = useState('')
+  const [isTaskListModalOpen, setIsTaskListModalOpen] = useState(false)
+  const [isTaskEditDialogOpen, setIsTaskEditDialogOpen] = useState(false)
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [taskListModalData, setTaskListModalData] = useState<{
+    title: string
+    description: string
+    tasks: Task[]
+  }>({ title: '', description: '', tasks: [] })
   const navigate = useNavigate()
 
   const loadDashboardData = useCallback(async (currentUser: User) => {
@@ -39,9 +49,12 @@ export default function Dashboard() {
           blink.db.tasks.list({ where: { userId: currentUser.id } })
         ])
 
+        // Always set the data from database, even if empty
+        setBoards(boardsData)
+        setAllTasks(tasksData)
+        
+        // If we have boards but no tasks, we can still show the boards
         if (boardsData.length > 0) {
-          setBoards(boardsData)
-          setAllTasks(tasksData)
           return
         }
       } catch (error) {
@@ -245,6 +258,97 @@ export default function Dashboard() {
     return { completed, total, progress }
   }
 
+  // Handle stat card clicks
+  const handleStatClick = (type: 'total' | 'completed' | 'due-today' | 'overdue' | 'high-priority') => {
+    let filteredTasks: Task[] = []
+    let title = ''
+    let description = ''
+
+    switch (type) {
+      case 'total':
+        filteredTasks = allTasks
+        title = 'All Tasks'
+        description = `View all ${totalTasks} tasks across your boards`
+        break
+      case 'completed':
+        filteredTasks = allTasks.filter(task => task.completed)
+        title = 'Completed Tasks'
+        description = `${completedTasks} tasks you've completed`
+        break
+      case 'due-today':
+        filteredTasks = allTasks.filter(task => {
+          if (!task.dueDate || task.completed) return false
+          const today = new Date()
+          const dueDate = new Date(task.dueDate)
+          return dueDate.toDateString() === today.toDateString()
+        })
+        title = 'Due Today'
+        description = `${dueTodayTasks} tasks due today`
+        break
+      case 'overdue':
+        filteredTasks = allTasks.filter(task => 
+          task.dueDate && new Date(task.dueDate) < new Date() && !task.completed
+        )
+        title = 'Overdue Tasks'
+        description = `${overdueTasks} tasks that are overdue`
+        break
+      case 'high-priority':
+        filteredTasks = allTasks.filter(task => task.priority === 'high' && !task.completed)
+        title = 'High Priority Tasks'
+        description = `${highPriorityTasks} high priority tasks`
+        break
+    }
+
+    setTaskListModalData({ title, description, tasks: filteredTasks })
+    setIsTaskListModalOpen(true)
+  }
+
+  // Handle task operations
+  const handleEditTask = (task: Task) => {
+    setSelectedTask(task)
+    setIsTaskEditDialogOpen(true)
+    setIsTaskListModalOpen(false)
+  }
+
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      // Try to delete from database, fallback to local state
+      try {
+        await blink.db.tasks.delete(taskId)
+      } catch (error) {
+        console.log('Database not available, using local state')
+      }
+
+      setAllTasks(prev => prev.filter(task => task.id !== taskId))
+      toast.success('Task deleted successfully!')
+    } catch (error) {
+      console.error('Error deleting task:', error)
+      toast.error('Failed to delete task')
+    }
+  }
+
+  const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
+    try {
+      const updatedTask = { ...updates, updatedAt: new Date().toISOString() }
+      
+      // Try to update in database, fallback to local state
+      try {
+        await blink.db.tasks.update(taskId, updatedTask)
+      } catch (error) {
+        console.log('Database not available, using local state')
+      }
+
+      setAllTasks(prev => prev.map(task => 
+        task.id === taskId ? { ...task, ...updatedTask } : task
+      ))
+
+      toast.success('Task updated successfully!')
+    } catch (error) {
+      console.error('Error updating task:', error)
+      toast.error('Failed to update task')
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -313,7 +417,10 @@ export default function Dashboard() {
 
           {/* Dashboard Statistics */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <Card className="border-l-4 border-l-blue-500">
+            <Card 
+              className="border-l-4 border-l-blue-500 cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-105"
+              onClick={() => handleStatClick('total')}
+            >
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -327,7 +434,10 @@ export default function Dashboard() {
               </CardContent>
             </Card>
             
-            <Card className="border-l-4 border-l-green-500">
+            <Card 
+              className="border-l-4 border-l-green-500 cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-105"
+              onClick={() => handleStatClick('completed')}
+            >
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -341,7 +451,10 @@ export default function Dashboard() {
               </CardContent>
             </Card>
             
-            <Card className="border-l-4 border-l-orange-500">
+            <Card 
+              className="border-l-4 border-l-orange-500 cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-105"
+              onClick={() => handleStatClick('due-today')}
+            >
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -355,7 +468,10 @@ export default function Dashboard() {
               </CardContent>
             </Card>
             
-            <Card className="border-l-4 border-l-red-500">
+            <Card 
+              className="border-l-4 border-l-red-500 cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-105"
+              onClick={() => handleStatClick('overdue')}
+            >
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -369,7 +485,10 @@ export default function Dashboard() {
               </CardContent>
             </Card>
             
-            <Card className="border-l-4 border-l-purple-500">
+            <Card 
+              className="border-l-4 border-l-purple-500 cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-105"
+              onClick={() => handleStatClick('high-priority')}
+            >
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -535,6 +654,33 @@ export default function Dashboard() {
           )}
         </div>
       </main>
+
+      {/* Task List Modal */}
+      <TaskListModal
+        open={isTaskListModalOpen}
+        onOpenChange={setIsTaskListModalOpen}
+        title={taskListModalData.title}
+        description={taskListModalData.description}
+        tasks={taskListModalData.tasks}
+        boards={boards}
+        onEditTask={handleEditTask}
+        onDeleteTask={handleDeleteTask}
+        onNavigateToBoard={(boardId) => navigate(`/board/${boardId}`)}
+      />
+
+      {/* Task Edit Dialog */}
+      <TaskEditDialog
+        open={isTaskEditDialogOpen}
+        onOpenChange={setIsTaskEditDialogOpen}
+        task={selectedTask}
+        onUpdateTask={handleUpdateTask}
+        onDeleteTask={handleDeleteTask}
+        columns={[]} // We don't have columns in dashboard context
+        subtasks={[]} // We don't have subtasks in dashboard context
+        onCreateSubtask={() => {}} // Not needed in dashboard context
+        onUpdateSubtask={() => {}} // Not needed in dashboard context
+        onDeleteSubtask={() => {}} // Not needed in dashboard context
+      />
     </div>
   )
 }
